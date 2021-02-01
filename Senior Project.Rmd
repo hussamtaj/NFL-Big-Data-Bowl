@@ -1,0 +1,66 @@
+---
+title: "Senior project"
+author: "Hussam Taj"
+date: "11/17/2019"
+output: html_document
+---
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(xgboost)
+library(caret)
+library(magrittr)
+library(Matrix)
+```
+
+
+Loading the data and getting creating a new indicator variable  "Response" for yards less than or equal to 5.
+```{r}
+nflData <- read_csv("C:/Users/Hussam Taj/Desktop/Fall 2019/MATH 495/kaggle/competitions/nflrush/train.csv")
+nflData <- nflData %>% mutate(Response = if_else(Yards >= "5", 1, 0))
+```
+
+
+Creating the test and train data through partition
+```{r}
+set.seed(1234)  # So that all the both partotions have the same observations
+par <- sample(2, nrow(nflData), replace = T, prob = c(0.75, 0.25))
+train <- nflData[par==1,]
+test <- nflData[par==2,]
+train <- train %>% filter(NflIdRusher == NflId)
+test <- test %>% filter(NflIdRusher == NflId)
+```
+
+Creating matrix ~ One-Hot Encoding for Factor variable
+For train
+```{r}
+trainm <- sparse.model.matrix(Response ~ .-1, data = train)
+train_label <- train[,"Response"]
+train_matrix <- xgb.DMatrix(data = as.matrix(trainm), label = train_label$Response)
+```
+
+For test
+```{r}
+testm <- sparse.model.matrix(Response ~ .-1, data = test)
+test_label <- test[,"Response"]
+test_matrix <- xgb.DMatrix(data = as.matrix(testm))
+```
+
+Parametrs
+```{r}
+nc <- length(unique(train_label))
+xgb_params <- list("objective" = "multi:softprob",
+                   "eval_metric = mlogloss",
+                   "num_class" = nc)
+watchlist <- list(train = train_matrix, test = test_matrix)
+```
+
+Extreme Gradient Boosting
+```{r}
+bst_model <- xgb.train(params = xgb_params, 
+                       data = train_matrix,
+                       nrounds = 100, 
+                       watchlist = watchlist)
+```
+
